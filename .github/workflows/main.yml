@@ -80,6 +80,7 @@ jobs:
 
       - name: Generate Azure Neural Japanese Audio & Build Android APK
         run: |
+          WORK_ROOT="$PWD"
           if [ -f "kotonoha-mobile-app/package.json" ]; then
             cd kotonoha-mobile-app
           fi
@@ -94,13 +95,20 @@ jobs:
           pip install --quiet edge-tts
           python3 scripts/generate_jp_audio.py
           python3 - << 'PY'
-          import json
+          import json, os
           p = 'package.json'
           d = json.load(open(p, encoding='utf-8'))
           deps = d.get('dependencies', {})
           deps.pop('@capacitor-community/text-to-speech', None)
           deps.pop('@capacitor-community/speech-recognition', None)
           open(p, 'w', encoding='utf-8').write(json.dumps(d, indent=2, ensure_ascii=False))
+
+          cp = 'capacitor.config.json'
+          c = json.load(open(cp, encoding='utf-8'))
+          owner = os.environ.get('GITHUB_REPOSITORY_OWNER', 'tingyan0611')
+          repo = os.environ.get('GITHUB_REPOSITORY', f'{owner}/kotonoha-app').split('/')[-1]
+          c['server'] = {'url': f'https://{owner}.github.io/{repo}/', 'cleartext': False, 'androidScheme': 'https'}
+          open(cp, 'w', encoding='utf-8').write(json.dumps(c, indent=2, ensure_ascii=False))
           PY
           npm install --legacy-peer-deps
           npm install @capacitor-community/text-to-speech@5 @capacitor-community/speech-recognition@6 --legacy-peer-deps
@@ -123,9 +131,11 @@ jobs:
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
+          cp -f app/build/outputs/apk/debug/app-debug.apk "$WORK_ROOT/kotonoha-debug.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: kotonoha-android-apk
-          path: "**/android/app/build/outputs/apk/debug/app-debug.apk"
+          path: kotonoha-debug.apk
+          if-no-files-found: error
